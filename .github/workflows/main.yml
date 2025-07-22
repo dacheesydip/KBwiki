@@ -1,0 +1,45 @@
+name: Convert RST to HTML
+
+on:
+  push:
+    paths:
+      - '**.rst'
+  workflow_dispatch:
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install pandoc
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+
+      - name: Convert RST files to HTML (in-place)
+        run: |
+          find . -name '*.rst' | while read rst; do
+            html="${rst%.rst}.html"
+            if [ ! -f "$html" ] || [ "$rst" -nt "$html" ]; then
+              echo "Converting $rst to $html..."
+              pandoc "$rst" -f rst -t html -o "$html"
+            else
+              echo "$html is up-to-date. Skipping."
+            fi
+          done
+
+      - name: Commit and push generated HTML files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Stage only generated HTML files
+          git add $(find . -name '*.html')
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Auto-generate HTML from RST via GitHub Actions"
+            git push
+          fi
