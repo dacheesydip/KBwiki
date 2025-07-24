@@ -7,7 +7,7 @@ Welcome to the ERCOFTAC Knowledge Base Wiki. This Wiki contains information abou
 Contents
 --------
 .. raw:: html
-   `<a href="https://kbwiki.ercoftac.org/w/index.php?title=Application_Areas">* Application Areas</a>`{=html}
+   <a href="https://kbwiki.ercoftac.org/w/index.php?title=Application_Areas">* Application Areas</a>
 * `Underlying flow regimes <https://kbwiki.ercoftac.org/w/index.php?title=Underlying_flow_regimes>`_
 * `Direct Numerical Simulations <https://kbwiki.ercoftac.org/w/index.php?title=Direct_Numerical_Simulations>`_
 * `Experimental Studies <https://kbwiki.ercoftac.org/w/index.php?title=Experimental_Studies>`_
