@@ -38,16 +38,16 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add **/*.html
+          html_files=$(find . -name '*.html')
+          if [ -n "$html_files" ]; then
+            git add $html_files
 
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
+            if git diff --cached --quiet; then
+              echo "No changes to commit."
+            else
+              git commit -m "Auto-generate HTML from RST via GitHub Actions"
+              git push
+            fi
           else
-            git commit -m "Auto-generate HTML from RST via GitHub Actions"
-            git push
-          fi
-
-          else
-            git commit -m "Auto-generate HTML from RST via GitHub Actions"
-            git push
+            echo "No HTML files found to commit."
           fi
