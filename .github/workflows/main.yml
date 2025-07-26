@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write  # This gives the workflow permission to push back to the repo
+      contents: write  # Required to allow committing changes back to the repo
 
     steps:
       - name: Checkout repo
@@ -26,7 +26,7 @@ jobs:
             html="${rst%.rst}.html"
             if [ ! -f "$html" ] || [ "$rst" -nt "$html" ]; then
               echo "Converting $rst to $html..."
-              pandoc "$rst" --from=rst+raw_html --to=html -o "$html" --standalone
+              pandoc "$rst" --from=rst --to=html -o "$html" --standalone
             else
               echo "$html is up-to-date. Skipping."
             fi
