@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write  # Required to allow committing changes back to the repo
+      contents: write
 
     steps:
       - name: Checkout repo
@@ -20,15 +20,16 @@ jobs:
       - name: Install pandoc
         run: sudo apt-get update && sudo apt-get install -y pandoc
 
-      - name: Convert RST files to HTML (preserve raw HTML)
+      - name: Convert RST files to HTML
         run: |
-          find . -name '*.rst' | while read rst; do
+          shopt -s nullglob
+          for rst in **/*.rst; do
             html="${rst%.rst}.html"
             if [ ! -f "$html" ] || [ "$rst" -nt "$html" ]; then
               echo "Converting $rst to $html..."
               pandoc "$rst" --from=rst --to=html -o "$html" --standalone
             else
-              echo "$html is up-to-date. Skipping."
+              echo "Skipping $rst — up-to-date."
             fi
           done
 
@@ -37,7 +38,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add $(find . -name '*.html')
+          git add **/*.html
 
           if git diff --cached --quiet; then
             echo "No changes to commit."
