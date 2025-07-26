@@ -10,6 +10,9 @@ jobs:
   convert:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write  # This gives the workflow permission to push back to the repo
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -17,13 +20,13 @@ jobs:
       - name: Install pandoc
         run: sudo apt-get update && sudo apt-get install -y pandoc
 
-      - name: Convert RST files to HTML (in-place)
+      - name: Convert RST files to HTML (preserve raw HTML)
         run: |
           find . -name '*.rst' | while read rst; do
             html="${rst%.rst}.html"
             if [ ! -f "$html" ] || [ "$rst" -nt "$html" ]; then
               echo "Converting $rst to $html..."
-              pandoc "$rst" -f rst -t html -o "$html"
+              pandoc "$rst" --from=rst+raw_html --to=html -o "$html" --standalone
             else
               echo "$html is up-to-date. Skipping."
             fi
@@ -34,11 +37,15 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Stage only generated HTML files
           git add $(find . -name '*.html')
 
           if git diff --cached --quiet; then
             echo "No changes to commit."
+          else
+            git commit -m "Auto-generate HTML from RST via GitHub Actions"
+            git push
+          fi
+
           else
             git commit -m "Auto-generate HTML from RST via GitHub Actions"
             git push
