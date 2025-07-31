@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write
+      contents: write  # Required to push changes
 
     steps:
       - name: Checkout repo
@@ -22,7 +22,7 @@ jobs:
 
       - name: Debug — list .rst files
         run: |
-          echo "Looking for .rst files in the repo:"
+          echo "Looking for .rst files:"
           find . -name '*.rst' || echo "No .rst files found."
 
       - name: Test pandoc with dummy .rst file
@@ -30,7 +30,7 @@ jobs:
           echo "Creating test.rst..."
           echo -e "Test Page\n=========\n\nThis is a test.\n\n.. raw:: html\n\n    <script>console.log('HTML preserved');</script>" > test.rst
           pandoc test.rst -f rst -t html -o test.html --standalone
-          echo "Generated test.html content:"
+          echo "Generated test.html:"
           cat test.html
 
       - name: Convert actual .rst files to HTML
@@ -54,7 +54,11 @@ jobs:
 
           html_files=$(find . -name '*.html' ! -name 'test.html')
           if [ -n "$html_files" ]; then
-            git add $html_files
+            echo "Found HTML files:"
+            echo "$html_files"
+
+            # Force add in case files are in .gitignore
+            git add -f $html_files
 
             if git diff --cached --quiet; then
               echo "No changes to commit."
