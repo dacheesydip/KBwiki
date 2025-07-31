@@ -20,10 +20,24 @@ jobs:
       - name: Install pandoc
         run: sudo apt-get update && sudo apt-get install -y pandoc
 
-      - name: Convert RST files to HTML
+      - name: Debug — list .rst files
+        run: |
+          echo "Looking for .rst files in the repo:"
+          find . -name '*.rst' || echo "No .rst files found."
+
+      - name: Test pandoc with dummy .rst file
+        run: |
+          echo "Creating test.rst..."
+          echo -e "Test Page\n=========\n\nThis is a test.\n\n.. raw:: html\n\n    <script>console.log('HTML preserved');</script>" > test.rst
+          pandoc test.rst -f rst -t html -o test.html --standalone
+          echo "Generated test.html content:"
+          cat test.html
+
+      - name: Convert actual .rst files to HTML
         run: |
           shopt -s nullglob
           for rst in **/*.rst; do
+            [ "$rst" = "test.rst" ] && continue  # Skip dummy file
             html="${rst%.rst}.html"
             if [ ! -f "$html" ] || [ "$rst" -nt "$html" ]; then
               echo "Converting $rst to $html..."
@@ -38,7 +52,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          html_files=$(find . -name '*.html')
+          html_files=$(find . -name '*.html' ! -name 'test.html')
           if [ -n "$html_files" ]; then
             git add $html_files
 
