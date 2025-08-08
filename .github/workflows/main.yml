@@ -1,5 +1,5 @@
 # .github/workflows/rst-to-html.yml
-name: Convert RST to HTML
+name: Convert RST to HTML with Pandoc
 
 on:
   push:
@@ -22,15 +22,11 @@ jobs:
       with:
         fetch-depth: 0
         
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-        
-    - name: Install dependencies
+    - name: Install Pandoc
       run: |
-        python -m pip install --upgrade pip
-        pip install docutils
+        sudo apt-get update
+        sudo apt-get install -y pandoc
+        pandoc --version
         
     - name: Get changed RST files
       id: changed-files
@@ -39,131 +35,101 @@ jobs:
         files: |
           **.rst
           
-    - name: Debug changed files
-      if: steps.changed-files.outputs.any_changed == 'true'
+    - name: Debug information
       run: |
-        echo "Changed files detected:"
-        echo "${{ steps.changed-files.outputs.all_changed_files }}"
         echo "Any changed: ${{ steps.changed-files.outputs.any_changed }}"
+        echo "All changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
+        echo "Repository contents:"
+        find . -name "*.rst" -type f
         
     - name: Convert RST files to HTML
       run: |
         # Create conversion script
-        cat > convert_rst.py << 'EOF'
-        import os
-        import sys
-        from docutils.core import publish_file
+        cat > convert_with_pandoc.sh << 'EOF'
+        #!/bin/bash
         
-        def convert_rst_to_html(rst_file):
-            # Determine output HTML file path
-            html_file = os.path.splitext(rst_file)[0] + '.html'
-            
-            try:
-                # Convert RST to HTML using docutils
-                publish_file(
-                    source_path=rst_file,
-                    destination_path=html_file,
-                    writer_name='html',
-                    settings_overrides={
-                        'input_encoding': 'utf-8',
-                        'output_encoding': 'utf-8',
-                        'embed_stylesheet': False,
-                        'raw_enabled': True,
-                        'file_insertion_enabled': False,
-                        'halt_level': 2,
-                        'report_level': 2,
-                        'doctitle_xform': False,
-                        'initial_header_level': 1,
-                    }
-                )
-                print(f"✓ Converted {rst_file} to {html_file}")
-                return html_file
-                
-            except Exception as e:
-                print(f"✗ Error converting {rst_file}: {e}")
-                # Try with more permissive settings
-                try:
-                    publish_file(
-                        source_path=rst_file,
-                        destination_path=html_file,
-                        writer_name='html',
-                        settings_overrides={
-                            'input_encoding': 'utf-8',
-                            'output_encoding': 'utf-8',
-                            'embed_stylesheet': False,
-                            'raw_enabled': True,
-                            'file_insertion_enabled': False,
-                            'halt_level': 5,  # More permissive
-                            'report_level': 5,
-                        }
-                    )
-                    print(f"✓ Converted {rst_file} to {html_file} (permissive mode)")
-                    return html_file
-                except Exception as e2:
-                    print(f"✗ Failed to convert {rst_file}: {e2}")
-                    raise e2
+        converted_files=()
         
-        if __name__ == "__main__":
-            import sys
-            print(f"Arguments received: {sys.argv}")
+        # Function to convert a single RST file
+        convert_file() {
+            local rst_file="$1"
+            local html_file="${rst_file%.rst}.html"
             
-            # Get changed files from command line arguments
-            if len(sys.argv) > 1:
-                changed_files = sys.argv[1].split()  # Split space-separated files
-            else:
-                print("No files provided as arguments")
-                sys.exit(0)
+            echo "Converting: $rst_file -> $html_file"
             
-            print(f"Processing files: {changed_files}")
-            converted_files = []
-            
-            for rst_file in changed_files:
-                rst_file = rst_file.strip()  # Remove any whitespace
-                print(f"Checking file: '{rst_file}'")
-                
-                if rst_file.endswith('.rst'):
-                    if os.path.exists(rst_file):
-                        print(f"Converting {rst_file}...")
-                        try:
-                            html_file = convert_rst_to_html(rst_file)
-                            converted_files.append(html_file)
-                        except Exception as e:
-                            print(f"✗ Error converting {rst_file}: {e}")
-                            sys.exit(1)
-                    else:
-                        print(f"File does not exist: {rst_file}")
-                else:
-                    print(f"Skipping non-RST file: {rst_file}")
-            
-            # Output list of converted files for next step
-            if converted_files:
-                print(f"Converted files: {converted_files}")
-                with open('converted_files.txt', 'w') as f:
-                    f.write('\n'.join(converted_files))
-                print("Conversion completed successfully")
-            else:
-                print("No files were converted")
+            # Use pandoc to convert RST to HTML
+            if pandoc "$rst_file" -f rst -t html5 -s --metadata title="$(basename "$rst_file" .rst)" -o "$html_file"; then
+                echo "✓ Successfully converted $rst_file to $html_file"
+                converted_files+=("$html_file")
+                return 0
+            else
+                echo "✗ Failed to convert $rst_file"
+                return 1
+            fi
+        }
+        
+        # Process changed files or find all RST files
+        if [ -n "$1" ]; then
+            # Process specific files passed as arguments
+            for file in $@; do
+                if [ -f "$file" ] && [[ "$file" == *.rst ]]; then
+                    convert_file "$file"
+                else
+                    echo "Skipping: $file (not found or not an RST file)"
+                fi
+            done
+        else
+            # Find all RST files if no specific files provided
+            echo "No specific files provided, searching for all RST files..."
+            while IFS= read -r -d '' rst_file; do
+                convert_file "$rst_file"
+            done < <(find . -name "*.rst" -type f -print0)
+        fi
+        
+        # Write list of converted files
+        if [ ${#converted_files[@]} -gt 0 ]; then
+            printf "%s\n" "${converted_files[@]}" > converted_files.txt
+            echo "Converted ${#converted_files[@]} files:"
+            cat converted_files.txt
+        else
+            echo "No files were converted"
+        fi
         EOF
         
-        # Check what files we're working with
-        echo "All changed files from GitHub Actions:"
-        echo "${{ steps.changed-files.outputs.all_changed_files }}"
+        chmod +x convert_with_pandoc.sh
         
-        # Run conversion on changed files
+        # Run conversion
         if [ -n "${{ steps.changed-files.outputs.all_changed_files }}" ]; then
-          echo "Running conversion script on changed files..."
-          python convert_rst.py "${{ steps.changed-files.outputs.all_changed_files }}"
+          echo "Converting changed files..."
+          ./convert_with_pandoc.sh ${{ steps.changed-files.outputs.all_changed_files }}
         else
-          echo "No changed files detected, checking for any RST files..."
-          # Find all RST files in the repository as fallback
-          rst_files=$(find . -name "*.rst" -type f | head -10)  # Limit to first 10 files
-          if [ -n "$rst_files" ]; then
-            echo "Found RST files: $rst_files"
-            python convert_rst.py "$rst_files"
-          else
-            echo "No RST files found in repository"
-          fi
+          echo "No changed files detected, converting all RST files..."
+          ./convert_with_pandoc.sh
         fi
+        
+    - name: Check results
+      run: |
+        echo "Checking for converted files..."
+        if [ -f "converted_files.txt" ]; then
+          echo "Files that were converted:"
+          cat converted_files.txt
+          echo "Verifying HTML files exist:"
+          while IFS= read -r file; do
+            if [ -f "$file" ]; then
+              echo "✓ $file exists ($(wc -c < "$file") bytes)"
+              echo "First few lines:"
+              head -3 "$file"
+              echo "---"
+            else
+              echo "✗ $file missing"
+            fi
+          done < converted_files.txt
+        else
+          echo "No converted_files.txt found"
+        fi
+        
+        echo "All HTML files in repository:"
+        find . -name "*.html" -type f -exec ls -la {} \;
         
     - name: Commit and push changes
       run: |
@@ -184,10 +150,13 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Auto-update HTML files from RST changes
-            
-            Updated files:
-            $(cat converted_files.txt | sed 's/^/- /')"
+
+Updated files:
+$(cat converted_files.txt | sed 's/^/- /')"
             
             git push
+            echo "Changes pushed to repository"
           fi
+        else
+          echo "No converted files to commit"
         fi
