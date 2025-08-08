@@ -1,3 +1,4 @@
+# .github/workflows/rst-to-html.yml
 name: Convert RST to HTML
 
 on:
@@ -46,93 +47,55 @@ jobs:
         import os
         import sys
         from docutils.core import publish_file
-        from docutils.writers.html4css1 import Writer, HTMLTranslator
-        from docutils.parsers.rst import directives
-        from docutils import nodes
-        import re
         
         def convert_rst_to_html(rst_file):
             # Determine output HTML file path
             html_file = os.path.splitext(rst_file)[0] + '.html'
             
-            # Read RST content and preprocess it to preserve HTML
-            with open(rst_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            # Find HTML blocks and wrap them with raw directive
-            # Pattern to match HTML tags and blocks
-            html_patterns = [
-                # Match complete HTML tags with content
-                r'(<[a-zA-Z][^>]*>.*?</[a-zA-Z][^>]*>)',
-                # Match self-closing tags
-                r'(<[a-zA-Z][^>]*/>)',
-                # Match simple HTML tags
-                r'(<[a-zA-Z][^>]*>[^<]*</[a-zA-Z][^>]*>)'
-            ]
-            
-            processed_content = content
-            
-            for pattern in html_patterns:
-                def wrap_html_block(match):
-                    html_content = match.group(1)
-                    # Indent the HTML content for the raw directive
-                    indented_html = '\n'.join('   ' + line for line in html_content.split('\n'))
-                    return f'\n\n.. raw:: html\n\n{indented_html}\n\n'
-                
-                processed_content = re.sub(pattern, wrap_html_block, processed_content, flags=re.DOTALL | re.MULTILINE)
-            
-            # Write processed content to temporary file
-            temp_rst = rst_file + '.tmp'
-            with open(temp_rst, 'w', encoding='utf-8') as f:
-                f.write(processed_content)
-            
             try:
-                # Convert to HTML using docutils
-                with open(temp_rst, 'rb') as source:
-                    with open(html_file, 'wb') as destination:
-                        publish_file(
-                            source=source,
-                            destination=destination,
-                            writer_name='html',
-                            settings_overrides={
-                                'input_encoding': 'utf-8',
-                                'output_encoding': 'utf-8',
-                                'embed_stylesheet': False,
-                                'raw_enabled': True,
-                                'file_insertion_enabled': False,
-                                'halt_level': 2,
-                                'report_level': 2,
-                                'doctitle_xform': False,
-                                'initial_header_level': 1,
-                            }
-                        )
+                # Convert RST to HTML using docutils
+                publish_file(
+                    source_path=rst_file,
+                    destination_path=html_file,
+                    writer_name='html',
+                    settings_overrides={
+                        'input_encoding': 'utf-8',
+                        'output_encoding': 'utf-8',
+                        'embed_stylesheet': False,
+                        'raw_enabled': True,
+                        'file_insertion_enabled': False,
+                        'halt_level': 2,
+                        'report_level': 2,
+                        'doctitle_xform': False,
+                        'initial_header_level': 1,
+                    }
+                )
                 print(f"✓ Converted {rst_file} to {html_file}")
                 return html_file
+                
             except Exception as e:
-                print(f"✗ Error during conversion: {e}")
-                # Try without preprocessing as fallback
-                with open(rst_file, 'rb') as source:
-                    with open(html_file, 'wb') as destination:
-                        publish_file(
-                            source=source,
-                            destination=destination,
-                            writer_name='html',
-                            settings_overrides={
-                                'input_encoding': 'utf-8',
-                                'output_encoding': 'utf-8',
-                                'embed_stylesheet': False,
-                                'raw_enabled': True,
-                                'file_insertion_enabled': False,
-                                'halt_level': 3,
-                                'report_level': 3,
-                            }
-                        )
-                print(f"✓ Converted {rst_file} to {html_file} (fallback mode)")
-                return html_file
-            finally:
-                # Clean up temporary file
-                if os.path.exists(temp_rst):
-                    os.remove(temp_rst)
+                print(f"✗ Error converting {rst_file}: {e}")
+                # Try with more permissive settings
+                try:
+                    publish_file(
+                        source_path=rst_file,
+                        destination_path=html_file,
+                        writer_name='html',
+                        settings_overrides={
+                            'input_encoding': 'utf-8',
+                            'output_encoding': 'utf-8',
+                            'embed_stylesheet': False,
+                            'raw_enabled': True,
+                            'file_insertion_enabled': False,
+                            'halt_level': 5,  # More permissive
+                            'report_level': 5,
+                        }
+                    )
+                    print(f"✓ Converted {rst_file} to {html_file} (permissive mode)")
+                    return html_file
+                except Exception as e2:
+                    print(f"✗ Failed to convert {rst_file}: {e2}")
+                    raise e2
         
         if __name__ == "__main__":
             changed_files = sys.argv[1:]
