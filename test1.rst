@@ -13,13 +13,14 @@ Contents
 * `Experimental Studies <https://kbwiki.ercoftac.org/w/index.php?title=Experimental_Studies>`_
 
 This wiki is still under development. Please help us by contributing.
-----------------------------------------------------------------------
+---------------------------------------------------------------------
 
 If you are interested in contributing to this wiki, please `register <https://kbwiki.ercoftac.org/w/index.php?title=Special:UserLogin&type=signup>`_ and `log in <https://kbwiki.ercoftac.org/w/index.php?title=Special:UserLogin>`_. You can then edit pages, add content, and help us improve the knowledge base.
 
 Please refer to the `Help <https://kbwiki.ercoftac.org/w/index.php?title=Help:Contents>`_ section for guidance on how to edit and add content.
 
 More information about ERCOFTAC is available at the `ERCOFTAC Website <https://www.ercoftac.org/>`_.
+
 
 
 
