@@ -55,46 +55,89 @@ jobs:
             local rst_file="$1"
             local html_file="${rst_file%.rst}.html"
             
-            echo "Converting: $rst_file -> $html_file"
+            echo "=== Converting File ==="
+            echo "Input:  $rst_file"
+            echo "Output: $html_file"
+            echo "RST file exists: $([ -f "$rst_file" ] && echo "YES" || echo "NO")"
+            echo "RST file size: $([ -f "$rst_file" ] && wc -c < "$rst_file" || echo "N/A") bytes"
+            
+            if [ ! -f "$rst_file" ]; then
+                echo "✗ RST file does not exist: $rst_file"
+                return 1
+            fi
+            
+            echo "RST content preview:"
+            head -5 "$rst_file" | sed 's/^/  | /'
+            echo "  ..."
             
             # Check pandoc version and raw HTML capabilities
             pandoc_version=$(pandoc --version | head -1)
             echo "Using: $pandoc_version"
             
             # Use pandoc to convert RST to HTML with raw HTML preservation
-            # For newer pandoc versions, raw HTML is enabled by default in RST
+            echo "Running pandoc command..."
             if pandoc "$rst_file" \
                 -f rst+raw_html \
                 -t html5 \
                 -s \
                 --metadata title="$(basename "$rst_file" .rst)" \
                 --wrap=none \
-                -o "$html_file"; then
-                echo "✓ Successfully converted $rst_file to $html_file"
-                converted_files+=("$html_file")
-                return 0
+                -o "$html_file" 2>&1; then
+                
+                if [ -f "$html_file" ]; then
+                    echo "✓ Successfully converted $rst_file to $html_file"
+                    echo "HTML file size: $(wc -c < "$html_file") bytes"
+                    echo "HTML preview:"
+                    head -10 "$html_file" | sed 's/^/  | /'
+                    converted_files+=("$html_file")
+                    return 0
+                else
+                    echo "✗ Pandoc succeeded but HTML file not created: $html_file"
+                    return 1
+                fi
             else
-                echo "✗ Failed to convert $rst_file"
+                echo "✗ Pandoc failed to convert $rst_file"
+                echo "Trying fallback conversion without extensions..."
+                if pandoc "$rst_file" -f rst -t html5 -s -o "$html_file" 2>&1; then
+                    if [ -f "$html_file" ]; then
+                        echo "✓ Fallback conversion succeeded"
+                        converted_files+=("$html_file")
+                        return 0
+                    fi
+                fi
                 return 1
             fi
         }
         
         # Process changed files or find all RST files
+        echo "=== Processing Files ==="
+        echo "Arguments passed: $#"
+        echo "Arguments: $@"
+        
         if [ -n "$1" ]; then
             # Process specific files passed as arguments
+            echo "Processing specific files from arguments..."
             for file in $@; do
+                echo "Checking argument: '$file'"
                 if [ -f "$file" ] && [[ "$file" == *.rst ]]; then
+                    echo "Processing: $file"
                     convert_file "$file"
                 else
                     echo "Skipping: $file (not found or not an RST file)"
+                    [ -f "$file" ] || echo "  - File does not exist"
+                    [[ "$file" == *.rst ]] || echo "  - Not an RST file"
                 fi
             done
         else
             # Find all RST files if no specific files provided
             echo "No specific files provided, searching for all RST files..."
+            rst_count=0
             while IFS= read -r -d '' rst_file; do
+                echo "Found RST file: $rst_file"
                 convert_file "$rst_file"
+                ((rst_count++))
             done < <(find . -name "*.rst" -type f -print0)
+            echo "Total RST files found: $rst_count"
         fi
         
         # Write list of converted files
@@ -149,10 +192,13 @@ jobs:
         
         # Add converted HTML files
         if [ -f "converted_files.txt" ]; then
+          echo "Found converted_files.txt, processing..."
           while IFS= read -r file; do
             if [ -f "$file" ]; then
               git add "$file"
               echo "Added $file to git"
+            else
+              echo "File $file not found for git add"
             fi
           done < converted_files.txt
           
@@ -160,10 +206,11 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
+            echo "Committing changes..."
             git commit -m "Auto-update HTML files from RST changes
 
         Updated files:
-         $(cat converted_files.txt | sed 's/^/- /')"
+        $(cat converted_files.txt | sed 's/^/- /')"
             
             git push
             echo "Changes pushed to repository"
