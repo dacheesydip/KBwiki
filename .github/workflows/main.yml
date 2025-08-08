@@ -39,8 +39,14 @@ jobs:
         files: |
           **.rst
           
-    - name: Convert RST files to HTML
+    - name: Debug changed files
       if: steps.changed-files.outputs.any_changed == 'true'
+      run: |
+        echo "Changed files detected:"
+        echo "${{ steps.changed-files.outputs.all_changed_files }}"
+        echo "Any changed: ${{ steps.changed-files.outputs.any_changed }}"
+        
+    - name: Convert RST files to HTML
       run: |
         # Create conversion script
         cat > convert_rst.py << 'EOF'
@@ -98,29 +104,68 @@ jobs:
                     raise e2
         
         if __name__ == "__main__":
-            changed_files = sys.argv[1:]
+            import sys
+            print(f"Arguments received: {sys.argv}")
+            
+            # Get changed files from command line arguments
+            if len(sys.argv) > 1:
+                changed_files = sys.argv[1].split()  # Split space-separated files
+            else:
+                print("No files provided as arguments")
+                sys.exit(0)
+            
+            print(f"Processing files: {changed_files}")
             converted_files = []
             
             for rst_file in changed_files:
-                if rst_file.endswith('.rst') and os.path.exists(rst_file):
-                    try:
-                        html_file = convert_rst_to_html(rst_file)
-                        converted_files.append(html_file)
-                    except Exception as e:
-                        print(f"✗ Error converting {rst_file}: {e}")
-                        sys.exit(1)
+                rst_file = rst_file.strip()  # Remove any whitespace
+                print(f"Checking file: '{rst_file}'")
+                
+                if rst_file.endswith('.rst'):
+                    if os.path.exists(rst_file):
+                        print(f"Converting {rst_file}...")
+                        try:
+                            html_file = convert_rst_to_html(rst_file)
+                            converted_files.append(html_file)
+                        except Exception as e:
+                            print(f"✗ Error converting {rst_file}: {e}")
+                            sys.exit(1)
+                    else:
+                        print(f"File does not exist: {rst_file}")
+                else:
+                    print(f"Skipping non-RST file: {rst_file}")
             
             # Output list of converted files for next step
             if converted_files:
+                print(f"Converted files: {converted_files}")
                 with open('converted_files.txt', 'w') as f:
                     f.write('\n'.join(converted_files))
+                print("Conversion completed successfully")
+            else:
+                print("No files were converted")
         EOF
         
+        # Check what files we're working with
+        echo "All changed files from GitHub Actions:"
+        echo "${{ steps.changed-files.outputs.all_changed_files }}"
+        
         # Run conversion on changed files
-        python convert_rst.py ${{ steps.changed-files.outputs.all_changed_files }}
+        if [ -n "${{ steps.changed-files.outputs.all_changed_files }}" ]; then
+          echo "Running conversion script on changed files..."
+          python convert_rst.py "${{ steps.changed-files.outputs.all_changed_files }}"
+        else
+          echo "No changed files detected, checking for any RST files..."
+          # Find all RST files in the repository as fallback
+          rst_files=$(find . -name "*.rst" -type f | head -10)  # Limit to first 10 files
+          if [ -n "$rst_files" ]; then
+            echo "Found RST files: $rst_files"
+            python convert_rst.py "$rst_files"
+          else
+            echo "No RST files found in repository"
+          fi
+        fi
         
     - name: Commit and push changes
-      if: steps.changed-files.outputs.any_changed == 'true'
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
