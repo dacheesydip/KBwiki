@@ -151,8 +151,8 @@ jobs:
           else
             git commit -m "Auto-update HTML files from RST changes
 
-Updated files:
-$(cat converted_files.txt | sed 's/^/- /')"
+        Updated files:
+         $(cat converted_files.txt | sed 's/^/- /')"
             
             git push
             echo "Changes pushed to repository"
