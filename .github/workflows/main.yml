@@ -57,8 +57,19 @@ jobs:
             
             echo "Converting: $rst_file -> $html_file"
             
-            # Use pandoc to convert RST to HTML
-            if pandoc "$rst_file" -f rst -t html5 -s --metadata title="$(basename "$rst_file" .rst)" -o "$html_file"; then
+            # Check pandoc version and raw HTML capabilities
+            pandoc_version=$(pandoc --version | head -1)
+            echo "Using: $pandoc_version"
+            
+            # Use pandoc to convert RST to HTML with raw HTML preservation
+            # For newer pandoc versions, raw HTML is enabled by default in RST
+            if pandoc "$rst_file" \
+                -f rst+raw_html \
+                -t html5 \
+                -s \
+                --metadata title="$(basename "$rst_file" .rst)" \
+                --wrap=none \
+                -o "$html_file"; then
                 echo "✓ Successfully converted $rst_file to $html_file"
                 converted_files+=("$html_file")
                 return 0
@@ -151,8 +162,8 @@ jobs:
           else
             git commit -m "Auto-update HTML files from RST changes
 
-        Updated files:
-         $(cat converted_files.txt | sed 's/^/- /')"
+Updated files:
+$(cat converted_files.txt | sed 's/^/- /')"
             
             git push
             echo "Changes pushed to repository"
