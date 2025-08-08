@@ -1,4 +1,3 @@
-# .github/workflows/rst-to-html.yml
 name: Convert RST to HTML
 
 on:
@@ -49,68 +48,38 @@ jobs:
         from docutils.core import publish_file
         from docutils.writers.html4css1 import Writer, HTMLTranslator
         from docutils.parsers.rst import directives
-        from docutils.parsers.rst.directives import unchanged
         from docutils import nodes
-        
-        # Custom directive to preserve raw HTML
-        class RawHTMLDirective(directives.unchanged.Unchanged):
-            """Directive to preserve raw HTML content"""
-            required_arguments = 0
-            optional_arguments = 0
-            final_argument_whitespace = True
-            has_content = True
-            option_spec = {}
-            
-            def run(self):
-                # Join all content lines and create a raw HTML node
-                html_content = '\n'.join(self.content)
-                raw_node = nodes.raw('', html_content, format='html')
-                return [raw_node]
-        
-        # Register the directive
-        directives.register_directive('raw-html', RawHTMLDirective)
-        
-        # Custom HTML translator to handle raw HTML preservation
-        class PreservingHTMLTranslator(HTMLTranslator):
-            def visit_raw(self, node):
-                if node.get('format') == 'html':
-                    self.body.append(node.astext())
-                else:
-                    HTMLTranslator.visit_raw(self, node)
-                    
-            def depart_raw(self, node):
-                if node.get('format') != 'html':
-                    HTMLTranslator.depart_raw(self, node)
-        
-        # Custom writer
-        class PreservingHTMLWriter(Writer):
-            def __init__(self):
-                Writer.__init__(self)
-                self.translator_class = PreservingHTMLTranslator
+        import re
         
         def convert_rst_to_html(rst_file):
             # Determine output HTML file path
             html_file = os.path.splitext(rst_file)[0] + '.html'
             
-            # Read RST content and preprocess it
+            # Read RST content and preprocess it to preserve HTML
             with open(rst_file, 'r', encoding='utf-8') as f:
                 content = f.read()
             
-            # Wrap existing HTML blocks with raw-html directive
-            import re
+            # Find HTML blocks and wrap them with raw directive
+            # Pattern to match HTML tags and blocks
+            html_patterns = [
+                # Match complete HTML tags with content
+                r'(<[a-zA-Z][^>]*>.*?</[a-zA-Z][^>]*>)',
+                # Match self-closing tags
+                r'(<[a-zA-Z][^>]*/>)',
+                # Match simple HTML tags
+                r'(<[a-zA-Z][^>]*>[^<]*</[a-zA-Z][^>]*>)'
+            ]
             
-            # Pattern to match HTML blocks (simple heuristic)
-            html_pattern = r'(<[^>]+>.*?</[^>]+>)'
+            processed_content = content
             
-            def wrap_html(match):
-                html_content = match.group(1)
-                # Only wrap if it looks like a complete HTML tag
-                if '</' in html_content and html_content.strip().startswith('<'):
-                    return f'\n\n.. raw-html::\n\n   {html_content}\n\n'
-                return html_content
-            
-            # Apply the wrapping (be conservative to avoid breaking valid RST)
-            processed_content = re.sub(html_pattern, wrap_html, content, flags=re.DOTALL)
+            for pattern in html_patterns:
+                def wrap_html_block(match):
+                    html_content = match.group(1)
+                    # Indent the HTML content for the raw directive
+                    indented_html = '\n'.join('   ' + line for line in html_content.split('\n'))
+                    return f'\n\n.. raw:: html\n\n{indented_html}\n\n'
+                
+                processed_content = re.sub(pattern, wrap_html_block, processed_content, flags=re.DOTALL | re.MULTILINE)
             
             # Write processed content to temporary file
             temp_rst = rst_file + '.tmp'
@@ -118,13 +87,13 @@ jobs:
                 f.write(processed_content)
             
             try:
-                # Convert to HTML
+                # Convert to HTML using docutils
                 with open(temp_rst, 'rb') as source:
                     with open(html_file, 'wb') as destination:
                         publish_file(
                             source=source,
                             destination=destination,
-                            writer=PreservingHTMLWriter(),
+                            writer_name='html',
                             settings_overrides={
                                 'input_encoding': 'utf-8',
                                 'output_encoding': 'utf-8',
@@ -133,9 +102,32 @@ jobs:
                                 'file_insertion_enabled': False,
                                 'halt_level': 2,
                                 'report_level': 2,
+                                'doctitle_xform': False,
+                                'initial_header_level': 1,
                             }
                         )
                 print(f"✓ Converted {rst_file} to {html_file}")
+                return html_file
+            except Exception as e:
+                print(f"✗ Error during conversion: {e}")
+                # Try without preprocessing as fallback
+                with open(rst_file, 'rb') as source:
+                    with open(html_file, 'wb') as destination:
+                        publish_file(
+                            source=source,
+                            destination=destination,
+                            writer_name='html',
+                            settings_overrides={
+                                'input_encoding': 'utf-8',
+                                'output_encoding': 'utf-8',
+                                'embed_stylesheet': False,
+                                'raw_enabled': True,
+                                'file_insertion_enabled': False,
+                                'halt_level': 3,
+                                'report_level': 3,
+                            }
+                        )
+                print(f"✓ Converted {rst_file} to {html_file} (fallback mode)")
                 return html_file
             finally:
                 # Clean up temporary file
